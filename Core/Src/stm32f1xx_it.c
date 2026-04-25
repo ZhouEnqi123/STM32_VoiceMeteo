@@ -61,8 +61,19 @@
 /* USER CODE END EV */
 
 /******************************************************************************/
+#include "Clock.h"
+/* USER CODE END Includes */
 /*           Cortex-M3 Processor Interruption and Exception Handlers          */
 /******************************************************************************/
+/* 外部中断回调：将按键中断转发到闹钟驱动（PA0 -> 键1, PB1 -> 键2） */
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  if (GPIO_Pin == GPIO_PIN_0) {
+    Clock_PA0_Pressed();
+  } else if (GPIO_Pin == GPIO_PIN_1) {
+    Clock_PB1_Pressed();
+  }
+}
 /**
   * @brief This function handles Non maskable interrupt.
   */
@@ -189,6 +200,22 @@ void SysTick_Handler(void)
   /* USER CODE BEGIN SysTick_IRQn 1 */
 
   /* USER CODE END SysTick_IRQn 1 */
+}
+
+/**
+  * @brief This function handles EXTI line0 interrupt.
+  */
+void EXTI0_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
+}
+
+/**
+  * @brief This function handles EXTI line1 interrupt.
+  */
+void EXTI1_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
 }
 
 /******************************************************************************/

@@ -52,7 +52,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     hardware/Src/font.c
     hardware/Src/aht20.c
     hardware/Src/MyRTC.c
-    # hardware/Src/Clock.c  # 已注释：如需启用请取消此行的注释    # hardware/Src/bh1750.c  # 已注释：如需启用请取消此行的注释
+    hardware/Src/Clock.c
+    # hardware/Src/bh1750.c  # 已注释：如需启用请取消此行的注释
 )
 
 # Add include paths

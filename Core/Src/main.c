@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "MyRTC.h"
+#include "Clock.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,6 +98,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   OLED_Init();
   MyRTC_Init();
+  Clock_Init();
   /* 初始化 AHT20，若不存在设备则在运行时软重试 */
   AHT20_Init();
 
@@ -126,13 +128,34 @@ int main(void)
       OLED_PrintASCIIString(32, 0, (char *)"26-01-01", &afont16x8, OLED_COLOR_NORMAL);
     }
 
-    /* 中层：显示 RTC 时间（HH:MM:SS），若读取失败则显示 19:51:22（初始演示值） */
-    char time_buf[12] = "19:51:22";
-    if (MyRTC_GetTimeString(time_buf, sizeof(time_buf)) == 0) {
-      /* HH:MM:SS 共 8 个字符；大号字宽度按 12 计算：8×12=96，居中位置 (128-96)/2 = 16 */
-      OLED_PrintASCIIString(16, 20, time_buf, &afont24x12, OLED_COLOR_NORMAL);
+    /* 中层：若处于闹钟设置界面，显示设置界面（HH:MM，无秒）并闪烁被设置字段；
+       否则显示 RTC HH:MM:SS */
+    if (Clock_IsSetting()) {
+      uint8_t th=0, tm=0, field=0, flash=1;
+      Clock_GetTemp(&th, &tm);
+      field = Clock_GetSettingField();
+      flash = Clock_GetFlashState();
+      char set_buf[8];
+      if (field == 0 && !flash) {
+        sprintf(set_buf, "  :%02u", tm);
+      } else if (field == 1 && !flash) {
+        sprintf(set_buf, "%02u:  ", th);
+      } else {
+        sprintf(set_buf, "%02u:%02u", th, tm);
+      }
+      OLED_PrintASCIIString(16, 20, set_buf, &afont24x12, OLED_COLOR_NORMAL);
+      /* 右上显示闹钟图标（设置界面亦显示） */
+      OLED_DrawImage(110, 0, &ClockImg, OLED_COLOR_NORMAL);
     } else {
-      OLED_PrintASCIIString(16, 20, (char *)"19:51:22", &afont24x12, OLED_COLOR_NORMAL);
+      char time_buf[12] = "19:51:22";
+      if (MyRTC_GetTimeString(time_buf, sizeof(time_buf)) == 0) {
+        OLED_PrintASCIIString(16, 20, time_buf, &afont24x12, OLED_COLOR_NORMAL);
+      } else {
+        OLED_PrintASCIIString(16, 20, (char *)"19:51:22", &afont24x12, OLED_COLOR_NORMAL);
+      }
+      /* 正常模式下，若闹钟开启则在右上显示图标 */
+      uint8_t _en=0,_h=0,_m=0; Clock_GetAlarm(&_en,&_h,&_m);
+      if (_en) OLED_DrawImage(110, 0, &ClockImg, OLED_COLOR_NORMAL);
     }
 
     /* 在绘制底层之前检查 AHT20 是否可用；不可用时软重试并显示 AHT20 OFF */
@@ -165,7 +188,54 @@ int main(void)
 
     OLED_ShowFrame();
 
-    HAL_Delay(1000);
+    /* 如果进入设置态，短循环刷新以显示闪烁字段并即时响应按键；退出设置后恢复 1s 周期 */
+    if (Clock_IsSetting()) {
+      /* 在设置模式内使用较短的刷新间隔直到用户保存退出 */
+      while (Clock_IsSetting()) {
+        Clock_Periodic();
+        HAL_Delay(200);
+
+        /* 重新绘制设置界面以反映闪烁与变化 */
+        OLED_NewFrame();
+        /* 顶栏保持不变（NoWIFI + 居中日期 + 闹钟图标） */
+        OLED_DrawImage(2, 0, &NoWIFIImg, OLED_COLOR_NORMAL);
+        char date_buf2[16] = "26-01-01";
+        if (MyRTC_GetDateString(date_buf2, sizeof(date_buf2)) == 0) OLED_PrintASCIIString(32, 0, date_buf2, &afont16x8, OLED_COLOR_NORMAL);
+        else OLED_PrintASCIIString(32, 0, (char *)"26-01-01", &afont16x8, OLED_COLOR_NORMAL);
+
+        uint8_t th2=0, tm2=0, field2=0, flash2=1;
+        Clock_GetTemp(&th2, &tm2);
+        field2 = Clock_GetSettingField();
+        flash2 = Clock_GetFlashState();
+        char set_buf2[8];
+        if (field2 == 0 && !flash2) sprintf(set_buf2, "  :%02u", tm2);
+        else if (field2 == 1 && !flash2) sprintf(set_buf2, "%02u:  ", th2);
+        else sprintf(set_buf2, "%02u:%02u", th2, tm2);
+        OLED_PrintASCIIString(16, 20, set_buf2, &afont24x12, OLED_COLOR_NORMAL);
+
+        /* 底层仍显示温湿度（减少闪烁，读取上次值） */
+        if (AHT20_IsReady() == 0) {
+          AHT20_Measure();
+          temperature = AHT20_Temperature();
+          humidity = AHT20_Humidity();
+        }
+        OLED_DrawImage(0, 48, &temperatureImg, OLED_COLOR_NORMAL);
+        sprintf(message, "%.1f℃", temperature);
+        OLED_PrintString(16, 48, message, &font16x16, OLED_COLOR_NORMAL);
+        OLED_DrawImage(70, 48, &humidityImg, OLED_COLOR_NORMAL);
+        sprintf(message, "%.1f%%", humidity);
+        OLED_PrintString(86, 48, message, &font16x16, OLED_COLOR_NORMAL);
+
+        OLED_ShowFrame();
+      }
+    } else {
+      /* 正常模式：在 1s 内以 20ms 间隔调用 Clock_Periodic 以支持消抖与节奏；
+         显示仅在上方绘制一次（每秒更新） */
+      for (int i = 0; i < 50; ++i) {
+        Clock_Periodic();
+        HAL_Delay(20);
+      }
+    }
 
     /* USER CODE END WHILE */
 
