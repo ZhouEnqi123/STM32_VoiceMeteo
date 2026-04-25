@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
+#include "rtc.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -27,6 +28,7 @@
 #include "aht20.h"
 #include <stdio.h>
 #include <string.h>
+#include "MyRTC.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -91,8 +93,10 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
+  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   OLED_Init();
+  MyRTC_Init();
   /* 初始化 AHT20，若不存在设备则在运行时软重试 */
   AHT20_Init();
 
@@ -118,11 +122,14 @@ int main(void)
       /* 预先计算并写入的常量居中位置（字符数 6 × 8 = 48，(128-48)/2 = 40） */
       OLED_PrintASCIIString(40, 0, (char *)city, &afont16x8, OLED_COLOR_NORMAL);
 
-    /* 中层：大字号时间（目前固定显示 00:00，稍后接入 RTC） */
-    const char *time_str = "00:00";
-      /* 使用驱动中已有的大号 ASCII 字库 afont24x12（每字宽12，高24）
-         预计算居中位置：5×12=60，(128-60)/2=34 */
-      OLED_PrintASCIIString(34, 20, (char *)time_str, &afont24x12, OLED_COLOR_NORMAL);
+    /* 中层：显示 RTC 时间（HH:MM:SS），若读取失败则显示 19:51:22（初始演示值） */
+    char time_buf[12] = "19:51:22";
+    if (MyRTC_GetTimeString(time_buf, sizeof(time_buf)) == 0) {
+      /* HH:MM:SS 共 8 个字符；大号字宽度按 12 计算：8×12=96，居中位置 (128-96)/2 = 16 */
+      OLED_PrintASCIIString(16, 20, time_buf, &afont24x12, OLED_COLOR_NORMAL);
+    } else {
+      OLED_PrintASCIIString(16, 20, (char *)"19:51:22", &afont24x12, OLED_COLOR_NORMAL);
+    }
 
     /* 在绘制底层之前检查 AHT20 是否可用；不可用时软重试并显示 AHT20 OFF */
     int aht_ok = 0;
@@ -171,13 +178,15 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
@@ -197,6 +206,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
