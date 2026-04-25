@@ -23,7 +23,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include"oled.h"
+#include "oled.h"
+#include "aht20.h"
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -90,17 +92,41 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   OLED_Init();
+  AHT20_Init();
+
+  float temperature = 0.0f;
+  float humidity = 0.0f;
+  char aht20_message[64];
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    /* 心跳灯 */
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
+
+    /* 每次先绘制第一行项目名（始终显示） */
     OLED_NewFrame();
     OLED_PrintString(8, 0, "WIFI语音气象站", &font16x16, OLED_COLOR_NORMAL);
+
+    /* 检查 AHT20 是否就绪；就绪则显示温湿度，否则在第二行显示 AHT20 OFF */
+    if (AHT20_IsReady() == 0) {
+      AHT20_Measure();
+      temperature = AHT20_Temperature();
+      humidity = AHT20_Humidity();
+
+      sprintf(aht20_message, "温度:%.2f℃", temperature);
+      OLED_PrintString(8, 16, aht20_message, &font16x16, OLED_COLOR_NORMAL);
+      sprintf(aht20_message, "湿度:%.2f％", humidity);
+      OLED_PrintString(8, 32, aht20_message, &font16x16, OLED_COLOR_NORMAL);
+    } else {
+      OLED_PrintString(8, 16, "AHT20 OFF", &font16x16, OLED_COLOR_NORMAL);
+    }
+
     OLED_ShowFrame();
-    HAL_Delay(500);
+
+    HAL_Delay(1000);
 
     /* USER CODE END WHILE */
 

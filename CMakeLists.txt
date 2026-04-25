@@ -28,6 +28,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS TRUE)
 project(${CMAKE_PROJECT_NAME})
 message("Build type: " ${CMAKE_BUILD_TYPE})
 
+# Enable printf/scanf float support for newlib-nano (allow "%f" in sprintf/printf)
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -u _printf_float")
+
 # Enable CMake support for ASM and C languages
 enable_language(C ASM)
 
@@ -47,6 +50,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     hardware/Src/oled.c
     hardware/Src/font.c
+    hardware/Src/aht20.c
 )
 
 # Add include paths
