@@ -39,5 +39,9 @@ typedef struct Image {
 } Image;
 
 extern const Image bilibiliImg;
+extern const Image temperatureImg;
+extern const Image humidityImg;
+extern const Image luxImg;
+extern const Image WIFIImg;
 
 #endif // __FONT_H

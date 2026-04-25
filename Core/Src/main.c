@@ -25,8 +25,8 @@
 /* USER CODE BEGIN Includes */
 #include "oled.h"
 #include "aht20.h"
-#include "bh1750.h"
 #include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -93,11 +93,12 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   OLED_Init();
+  /* 初始化 AHT20，若不存在设备则在运行时软重试 */
   AHT20_Init();
-  BH1750_Init();
 
-  float temperature = 0.0f;
-  float humidity = 0.0f;
+  /* 温湿度变量：初始化为示例值，若传感器可用会被覆盖 */
+  float temperature = 26.2f; /* 初始演示温度 */
+  float humidity = 55.2f;    /* 初始演示湿度 */
   char message[64];
   /* USER CODE END 2 */
 
@@ -108,32 +109,47 @@ int main(void)
     /* 心跳灯 */
     HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 
-    /* 每次先绘制第一行项目名（始终显示） */
+    /* 新布局：顶栏(0..15)、中层(16..39)、底层(40..63) */
     OLED_NewFrame();
-    OLED_PrintString(8, 0, "WIFI语音气象站", &font16x16, OLED_COLOR_NORMAL);
 
-    /* AHT20 区域：独立显示，互不干扰 */
+    /* 顶栏：左 WiFi 图标、居中城市名、右侧闹钟状态（暂空） */
+    OLED_DrawImage(2, 0, &WIFIImg, OLED_COLOR_NORMAL); /* 左侧WiFi图标，16x16 */
+      const char *city = "Jinhua"; /* 城市名（居中显示） */
+      /* 预先计算并写入的常量居中位置（字符数 6 × 8 = 48，(128-48)/2 = 40） */
+      OLED_PrintASCIIString(40, 0, (char *)city, &afont16x8, OLED_COLOR_NORMAL);
+
+    /* 中层：大字号时间（目前固定显示 00:00，稍后接入 RTC） */
+    const char *time_str = "00:00";
+      /* 使用驱动中已有的大号 ASCII 字库 afont24x12（每字宽12，高24）
+         预计算居中位置：5×12=60，(128-60)/2=34 */
+      OLED_PrintASCIIString(34, 20, (char *)time_str, &afont24x12, OLED_COLOR_NORMAL);
+
+    /* 在绘制底层之前检查 AHT20 是否可用；不可用时软重试并显示 AHT20 OFF */
+    int aht_ok = 0;
     if (AHT20_IsReady() == 0) {
+      /* 设备就绪，测量并读取温湿度 */
       AHT20_Measure();
       temperature = AHT20_Temperature();
       humidity = AHT20_Humidity();
-      sprintf(message, "温度:%.2f℃", temperature);
-      OLED_PrintString(8, 16, message, &font16x16, OLED_COLOR_NORMAL);
-      sprintf(message, "湿度:%.2f％", humidity);
-      OLED_PrintString(8, 32, message, &font16x16, OLED_COLOR_NORMAL);
+      aht_ok = 1;
     } else {
-      OLED_PrintString(8, 16, "AHT20 OFF", &font16x16, OLED_COLOR_NORMAL);
+      /* 设备不可用：不进行软重启，仅标记为不可用，显示 AHT20 OFF */
+      aht_ok = 0;
     }
 
-    /* BH1750 区域：独立显示，互不干扰 */
-    float lux = 0.0f;
-    if (BH1750_IsReady() == 0 && BH1750_ReadLux(&lux) == 0) {
-      sprintf(message, "Lux: %.1f lx", lux);
-      OLED_PrintString(8, 48, message, &font16x16, OLED_COLOR_NORMAL);
+    if (aht_ok) {
+        /* 左侧温度图标从 (0,48) 开始，文本紧随其后 */
+        OLED_DrawImage(0, 48, &temperatureImg, OLED_COLOR_NORMAL);
+        sprintf(message, "%.1f℃", temperature);
+        OLED_PrintString(16, 48, message, &font16x16, OLED_COLOR_NORMAL);
+
+        /* 右侧湿度保持原位（靠右显示） */
+        OLED_DrawImage(70, 48, &humidityImg, OLED_COLOR_NORMAL);
+        sprintf(message, "%.1f%%", humidity);
+        OLED_PrintString(86, 48, message, &font16x16, OLED_COLOR_NORMAL);
     } else {
-      OLED_PrintString(8, 48, "BH1750 OFF", &font16x16, OLED_COLOR_NORMAL);
-      /* 设备不可用时尝试重新初始化（软重试），等待下一次循环检测 */
-      BH1750_Init();
+        /* 居中显示 AHT20 OFF（预计算居中位置：9×8=72，(128-72)/2=28） */
+        OLED_PrintASCIIString(28, 48, (char *)"AHT20 OFF", &afont16x8, OLED_COLOR_NORMAL);
     }
 
     OLED_ShowFrame();
