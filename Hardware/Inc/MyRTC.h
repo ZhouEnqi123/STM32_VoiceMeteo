@@ -13,4 +13,12 @@ int MyRTC_Init(void);
  */
 int MyRTC_GetTimeString(char *buf, uint8_t len);
 
+/**
+ * @brief 获取当前日期字符串（格式 YY-MM-DD，例如 26-01-01）
+ * @param buf 输出缓冲区
+ * @param len 缓冲区长度（建议 >=9）
+ * @return 0 成功，-1 失败
+ */
+int MyRTC_GetDateString(char *buf, uint8_t len);
+
 #endif // __MYRTC_H

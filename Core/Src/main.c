@@ -116,11 +116,15 @@ int main(void)
     /* 新布局：顶栏(0..15)、中层(16..39)、底层(40..63) */
     OLED_NewFrame();
 
-    /* 顶栏：左 WiFi 图标、居中城市名、右侧闹钟状态（暂空） */
-    OLED_DrawImage(2, 0, &WIFIImg, OLED_COLOR_NORMAL); /* 左侧WiFi图标，16x16 */
-      const char *city = "Jinhua"; /* 城市名（居中显示） */
-      /* 预先计算并写入的常量居中位置（字符数 6 × 8 = 48，(128-48)/2 = 40） */
-      OLED_PrintASCIIString(40, 0, (char *)city, &afont16x8, OLED_COLOR_NORMAL);
+    /* 顶栏：左侧显示 NoWIFI 图标，中间居中显示日期（格式 YY-MM-DD，例如 26-01-01） */
+    OLED_DrawImage(2, 0, &NoWIFIImg, OLED_COLOR_NORMAL); /* 左侧 NoWIFI 图标，16x16 */
+    char date_buf[16] = "26-01-01"; /* 初始显示，格式 YY-MM-DD */
+    if (MyRTC_GetDateString(date_buf, sizeof(date_buf)) == 0) {
+      /* 日期 8 字符，字体宽 8：8×8=64，居中位置 (128-64)/2 = 32 */
+      OLED_PrintASCIIString(32, 0, date_buf, &afont16x8, OLED_COLOR_NORMAL);
+    } else {
+      OLED_PrintASCIIString(32, 0, (char *)"26-01-01", &afont16x8, OLED_COLOR_NORMAL);
+    }
 
     /* 中层：显示 RTC 时间（HH:MM:SS），若读取失败则显示 19:51:22（初始演示值） */
     char time_buf[12] = "19:51:22";

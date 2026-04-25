@@ -29,3 +29,21 @@ int MyRTC_GetTimeString(char *buf, uint8_t len)
   snprintf(buf, len, "%02d:%02d:%02d", hh, mm, ss);
   return 0;
 }
+
+int MyRTC_GetDateString(char *buf, uint8_t len)
+{
+  if (buf == NULL || len < 9) return -1;
+
+  RTC_TimeTypeDef sTime;
+  RTC_DateTypeDef sDate;
+
+  /* 读取时间以满足 HAL 要求，随后读取日期 */
+  if (HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+    return -1;
+  if (HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN) != HAL_OK)
+    return -1;
+
+  /* 格式 YY-MM-DD，例如 26-01-01（hrtc Date.Year 为 0..99） */
+  snprintf(buf, len, "%02u-%02u-%02u", (unsigned)sDate.Year, (unsigned)sDate.Month, (unsigned)sDate.Date);
+  return 0;
+}
