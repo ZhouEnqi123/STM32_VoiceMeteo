@@ -25,6 +25,7 @@
 /* USER CODE BEGIN Includes */
 #include "oled.h"
 #include "aht20.h"
+#include "bh1750.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -93,10 +94,11 @@ int main(void)
   /* USER CODE BEGIN 2 */
   OLED_Init();
   AHT20_Init();
+  BH1750_Init();
 
   float temperature = 0.0f;
   float humidity = 0.0f;
-  char aht20_message[64];
+  char message[64];
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -110,18 +112,28 @@ int main(void)
     OLED_NewFrame();
     OLED_PrintString(8, 0, "WIFI语音气象站", &font16x16, OLED_COLOR_NORMAL);
 
-    /* 检查 AHT20 是否就绪；就绪则显示温湿度，否则在第二行显示 AHT20 OFF */
+    /* AHT20 区域：独立显示，互不干扰 */
     if (AHT20_IsReady() == 0) {
       AHT20_Measure();
       temperature = AHT20_Temperature();
       humidity = AHT20_Humidity();
-
-      sprintf(aht20_message, "温度:%.2f℃", temperature);
-      OLED_PrintString(8, 16, aht20_message, &font16x16, OLED_COLOR_NORMAL);
-      sprintf(aht20_message, "湿度:%.2f％", humidity);
-      OLED_PrintString(8, 32, aht20_message, &font16x16, OLED_COLOR_NORMAL);
+      sprintf(message, "温度:%.2f℃", temperature);
+      OLED_PrintString(8, 16, message, &font16x16, OLED_COLOR_NORMAL);
+      sprintf(message, "湿度:%.2f％", humidity);
+      OLED_PrintString(8, 32, message, &font16x16, OLED_COLOR_NORMAL);
     } else {
       OLED_PrintString(8, 16, "AHT20 OFF", &font16x16, OLED_COLOR_NORMAL);
+    }
+
+    /* BH1750 区域：独立显示，互不干扰 */
+    float lux = 0.0f;
+    if (BH1750_IsReady() == 0 && BH1750_ReadLux(&lux) == 0) {
+      sprintf(message, "Lux: %.1f lx", lux);
+      OLED_PrintString(8, 48, message, &font16x16, OLED_COLOR_NORMAL);
+    } else {
+      OLED_PrintString(8, 48, "BH1750 OFF", &font16x16, OLED_COLOR_NORMAL);
+      /* 设备不可用时尝试重新初始化（软重试），等待下一次循环检测 */
+      BH1750_Init();
     }
 
     OLED_ShowFrame();

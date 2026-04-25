@@ -51,6 +51,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     hardware/Src/oled.c
     hardware/Src/font.c
     hardware/Src/aht20.c
+    hardware/Src/bh1750.c
 )
 
 # Add include paths
